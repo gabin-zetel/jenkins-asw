@@ -23,10 +23,11 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-vocareum-creds'
-                ]]) {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+                ]) {
                     dir(env.TF_DIR) {
                         sh 'terraform init -reconfigure'
                     }
@@ -36,18 +37,25 @@ pipeline {
 
         stage('Terraform Validate') {
             steps {
-                dir(env.TF_DIR) {
-                    sh 'terraform validate'
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    dir(env.TF_DIR) {
+                        sh 'terraform validate'
+                    }
                 }
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-vocareum-creds'
-                ]]) {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+                ]) {
                     dir(env.TF_DIR) {
                         sh 'terraform plan -out=tfplan'
                     }
@@ -69,10 +77,11 @@ pipeline {
                 expression { params.ACTION in ['apply', 'destroy'] }
             }
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-vocareum-creds'
-                ]]) {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+                ]) {
                     dir(env.TF_DIR) {
                         script {
                             if (params.ACTION == 'apply') {
