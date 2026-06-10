@@ -53,7 +53,7 @@ resource "aws_nat_gateway" "nat" {
 
 # ── Security Group — Admin (SSH) ──────────────────────────────────
 resource "aws_security_group" "admin" {
-  name   = "sg-admin"
+  name   = "admin-sg"
   vpc_id = aws_vpc.main.id
 
   ingress {
@@ -70,12 +70,12 @@ resource "aws_security_group" "admin" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "sg-admin" }
+  tags = { Name = "admin-sg" }
 }
 
 # ── Security Group — Web Server (HTTP) ───────────────────────────
 resource "aws_security_group" "web" {
-  name   = "sg-web"
+  name   = "web-sg"
   vpc_id = aws_vpc.main.id
 
   ingress {
@@ -92,7 +92,7 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "sg-web" }
+  tags = { Name = "web-sg" }
 }
 
 # ── Instance Admin ────────────────────────────────────────────────
