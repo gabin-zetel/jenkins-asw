@@ -172,7 +172,6 @@ pipeline {
     }
 
     post {
-        success { echo "Pipeline terminé avec succès." }
-        failure { echo "Échec du pipeline." }
-    }
+    success { echo "C'est en prod que ça marche vraiment... et là ça marche aussi. Chapeau." }
+    failure { echo "Avez-vous essayé d'éteindre et de rallumer ? — Support niveau 1" }
 }
