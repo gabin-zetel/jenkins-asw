@@ -172,6 +172,7 @@ pipeline {
     }
 
     post {
-    success { echo "C'est en prod que ça marche vraiment... et là ça marche aussi. Chapeau." }
-    failure { echo "Avez-vous essayé d'éteindre et de rallumer ? — Support niveau 1" }
+        success { echo "C'est en prod que ca marche vraiment... et la ca marche aussi. Chapeau." }
+        failure { echo "Avez-vous essaye d'eteindre et de rallumer ? - Support niveau 1" }
+    }
 }
