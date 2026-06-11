@@ -1,0 +1,178 @@
+pipeline {
+    agent { label '' }
+
+    parameters {
+        activeChoice(
+            name: 'VPC_ID',
+            description: 'Sélectionner le VPC à supprimer',
+            filterable: true,
+            choiceType: 'PT_SINGLE_SELECT',
+            script: [
+                $class: 'GroovyScript',
+                fallbackScript: [
+                    classpath: [],
+                    sandbox: true,
+                    script: 'return ["Erreur de chargement des VPCs"]'
+                ],
+                script: [
+                    classpath: [],
+                    sandbox: true,
+                    script: '''
+                        try {
+                            def cmd = [
+                                "bash", "-c",
+                                "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} " +
+                                "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} " +
+                                "AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN} " +
+                                "AWS_DEFAULT_REGION=us-east-1 " +
+                                "aws ec2 describe-vpcs " +
+                                "--query \\"Vpcs[].{ID:VpcId,Name:Tags[?Key==\\'Name\\'].Value|[0],CIDR:CidrBlock}\\" " +
+                                "--output text"
+                            ]
+                            def proc = cmd.execute()
+                            def output = proc.text.trim()
+                            def list = []
+                            output.split("\\n").each { line ->
+                                def parts = line.split("\\t")
+                                if (parts.size() >= 3) {
+                                    def cidr = parts[0]
+                                    def id   = parts[1]
+                                    def name = parts[2] ?: "sans-nom"
+                                    list.add("${id} | ${name} | ${cidr}")
+                                }
+                            }
+                            return list ?: ["Aucun VPC trouvé"]
+                        } catch(e) {
+                            return ["Erreur: ${e.message}"]
+                        }
+                    '''
+                ]
+            ]
+        )
+
+        choice(
+            name: 'ACTION',
+            choices: ['plan', 'apply', 'destroy-vpc'],
+            description: 'Action à effectuer'
+        )
+    }
+
+    environment {
+        AWS_DEFAULT_REGION = 'us-east-1'
+        TF_DIR             = 'tp-ez'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Terraform Init') {
+            when {
+                expression { params.ACTION in ['plan', 'apply'] }
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    dir(env.TF_DIR) {
+                        sh 'terraform init -reconfigure'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Validate') {
+            when {
+                expression { params.ACTION in ['plan', 'apply'] }
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    dir(env.TF_DIR) {
+                        sh 'terraform validate'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            when {
+                expression { params.ACTION in ['plan', 'apply'] }
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    dir(env.TF_DIR) {
+                        sh 'terraform plan -out=tfplan'
+                    }
+                }
+            }
+        }
+
+        stage('Approval') {
+            when {
+                expression { params.ACTION in ['apply', 'destroy-vpc'] }
+            }
+            steps {
+                input message: "Confirmer l'action : ${params.ACTION} sur ${params.VPC_ID} ?", ok: 'Confirmer'
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                expression { params.ACTION == 'apply' }
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    dir(env.TF_DIR) {
+                        sh 'terraform apply -auto-approve tfplan'
+                    }
+                }
+            }
+        }
+
+        stage('Destroy VPC via AWS CLI') {
+            when {
+                expression { params.ACTION == 'destroy-vpc' }
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',     variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'aws-session-token',     variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    script {
+                        // Extraire uniquement le VPC_ID (avant le premier espace)
+                        def vpcId = params.VPC_ID.split(' ')[0].trim()
+                        echo "Suppression du VPC : ${vpcId}"
+                        sh """
+                            chmod +x ${env.TF_DIR}/destroy_vpc.sh
+                            ${env.TF_DIR}/destroy_vpc.sh ${vpcId}
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo "Pipeline terminé avec succès." }
+        failure { echo "Échec du pipeline." }
+    }
+}
