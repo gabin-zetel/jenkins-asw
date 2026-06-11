@@ -257,7 +257,7 @@ resource "aws_instance" "web" {
     yum install -y httpd
     systemctl start httpd
     systemctl enable httpd
-    echo "<h1>Bonjour ! Je suis le serveur Web : $(hostname)</h1><p>IP : $(hostname -I)</p>" > /var/www/html/index.html
+    echo "<h1>$(hostname) — En prod on ne teste pas, on prie.</h1><p>IP : $(hostname -I)</p>" > /var/www/html/index.html
   EOF
 
   tags = { Name = "web-server-${count.index + 1}" }
